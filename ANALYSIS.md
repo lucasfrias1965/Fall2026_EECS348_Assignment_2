@@ -1042,8 +1042,145 @@ Assume we have a pittance of 1 megabyte of stack frame. Let's calculate the wors
 
 Being a KU student for a year and a half has given me 1,526 emails in my mailbox. I promise you, KU students get a ridiculous amount of emails. Maybe not as much as a CEO, but I think it's comparable
 
-So, theoretically, if our boss was running his same email server on Windows Vista on a Pentium, he would have to clean his inbox once a year. Hopefully he's not. But since this is corporate software, expecting people to upgrade their systems and follow maintaince is a miracle. A heap based implementation probably is the way to go.
+So, theoretically, if our boss was running his same email server on Windows Vista on a Pentium, he would have to clean his inbox once a year. Hopefully he's not. But since this is corporate software, expecting people to upgrade their systems and follow maintaince is a miracle. A heap based implementation probably is the way to go, and even though this is a lot of analysis, this is a fundemental decision choice. Heap isn't that much worse or better than stack, but it is interesting, because I belive that most human C programmers would probably do a heap implementation.
 
 Can't say too much else about the MaxHeap implementation. AI has been programmed on thousands of maxheap implementations, and it chose a decent one for C.
 
 
+# Time Complexity
+
+
+
+# Space Complexity
+
+## Struct Padding
+You might already know where I'm going with this, but let's look at Luna and Sonnet's structs, their layout and then discuss:
+
+### Luna's Email Struct
+```c
+#define MAX_CATEGORY 30
+#define MAX_SUBJECT 500
+typedef struct
+{
+    char sender[MAX_CATEGORY];
+    char subject[MAX_SUBJECT];
+    char date[20];
+
+    int categoryPriority;
+    int dateValue;
+} Email;
+```
+
+### Sonnet's Email Struct
+```c
+#define MAX_CATEGORY_LEN  32
+#define MAX_SUBJECT_LEN   256
+
+typedef struct {
+    char category[MAX_CATEGORY_LEN];   /* Boss, Subordinate, Peer, ... */
+    char subject[MAX_SUBJECT_LEN];     /* subject line                 */
+    char date[11];                     /* MM-DD-YYYY (10 chars + NUL)  */
+    int  categoryRank;                 /* numeric priority of category */
+    long dateValue;                    /* YYYYMMDD, for easy comparison */
+} Email;
+```
+
+Okay, first and probably most significant detail is the long versus int on the datevalue. Don't really know why Sonnet chose long here. An int represents (unless we're on really old C) 4 bytes, and 2^32 is way more than enough space to represent millenia to come. Long, however, is much larger and very unecessary. It makes larger Emails, which are totally unnecessary.
+
+Sonnet does recognize that we only need 11 characters to represent the date, however, which gives its struct less size. When we build our own custom types, we want to implement the smallest byte size, especially when we have something that occurs a lot (like emails).
+
+To also note, both Sonnet and Luna have ridiculously long email subject permissions. According to Mr. Petrotta from StackOverflow:
+
+(https://stackoverflow.com/questions/1592291/what-is-the-email-subject-length-limit)
+
+```
+See RFC 2822, section 2.1.1 to start.
+
+There are two limits that this standard places on the number of characters in a line. Each line of characters MUST be no more than 998 characters, and SHOULD be no more than 78 characters, excluding the CRLF.
+```
+He continues to say:
+
+```
+The recommendation for no more than 78 characters in the subject header sounds reasonable. No one wants to scroll to see the entire subject line, and something important might get cut off on the right.
+```
+
+Testing this on a modern email client (this post is from 2009, after all) it seems like KU's outlook has a limit of 256. This seems reasonable. 500 is too much, and makes every email twice as expensive. Less is even possible, although maybe not good to implement.
+
+I made a quick little nonsense C program to check this:
+
+```c
+// Online C compiler to run C program online
+#include <stdio.h>
+/* Type your code here, or load an example. */
+#define MAX_CATEGORY_LEN  32
+#define MAX_SUBJECT_LEN   256
+#define MAX_CATEGORY 30
+#define MAX_SUBJECT 500
+
+
+int main() {
+    // Write C code here
+typedef struct
+{
+    char sender[MAX_CATEGORY];
+    char subject[MAX_SUBJECT];
+    char date[20];
+
+    int categoryPriority;
+    int dateValue;
+} Email;
+    
+typedef struct {
+    char category[MAX_CATEGORY_LEN];   /* Boss, Subordinate, Peer, ... */
+    char subject[MAX_SUBJECT_LEN];     /* subject line                 */
+    char date[11];                     /* MM-DD-YYYY (10 chars + NUL)  */
+    int  categoryRank;                 /* numeric priority of category */
+    long dateValue;                    /* YYYYMMDD, for easy comparison */
+} Email2;
+    Email rest = {0,0,0,0,0};
+    Email2 test = {0,0,0,0,0};
+    printf("Sonnet is: %d\n", sizeof(test));
+    printf("Luna is: %d", sizeof(rest));
+
+    return 0;
+}
+```
+And the result:
+
+```
+Sonnet is: 312
+Luna is: 560
+``` 
+
+shows that Luna's is almost 80% more memory than Sonnet's.
+
+Perhaps, the most important thing: struct ordering.
+
+To refresh, when creating a struct in C, all the memory is contiguous. Becuse of how C structs operate, they need a certain amount of spacing for the memory. For example:
+
+```c
+typedef struct {
+    int age
+    char letter
+} Guy;
+```
+
+We just made some Guy, and we would expect the size of this struct to be 4 + 1 to be five. However, actually getting sizeof,
+we get 8. Why?
+
+C will try and set the offsets of the table of accessable addresses the same width, generally speaking, for alignment. This can be platform dependent, but this example should generally hold true for almost all C compiliers. It is strange because this changes depending on exactly how the struct is ordered. For example:
+
+```
+typedef struct {
+    int age
+    char letter
+    char smetter
+    char better
+    char netter
+} Guy;
+```
+Also has 8 bytes of size, because the spacing is given for one char byte for each. It is a very strange result of the inner workings of C.
+
+Struct alignment, when done right, saves a lot of space. The long's addition in Sonnet makes the padding larger just where it is itself, but the categoryRank can be a uint8_t (it doesn't have that much range). I suspect the AI is generating older C, again.
+
+Recommended changes by me would defintely be to make a shorter subject line (let's say 256, which Sonnet does) and then 
