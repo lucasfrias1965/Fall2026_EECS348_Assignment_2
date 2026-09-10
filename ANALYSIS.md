@@ -1001,7 +1001,7 @@ void heapEnsureCapacity(MaxHeap *heap) {
 ```
 This is a function used by Sonnet's implementation to ensure before an addition that the new size of the array is large enough to actually add the element. If not, it will double in size. However, we want to guarentee contigous (touching) memory, so we use realloc for the heap data and then pass the new capacity to the correct position. 
 
-This is a very fancy solution, but it's kind of like bringing silverware to a McDonald's. A stack based implementation is possible without mallocing like this, but it is a pretty implementation too. The devil is in the details of whether or not we need to worry about massive amounts of emails. Let's see if this program works:
+This is a very fancy solution, but it's kind of like bringing silverware to a McDonald's. A stack based implementation is possible without mallocing like this, but it is a pretty implementation too. The devil is in the details of whether or not we need to worry about massive amounts of emails. Let's do the math:
 
 
 In 2009 (https://stackoverflow.com/questions/1825964/c-c-maximum-stack-size-of-program-on-mainstream-oses#1825996) the average stack frame size is roughly ~ 1 MB.
@@ -1049,9 +1049,51 @@ Can't say too much else about the MaxHeap implementation. AI has been programmed
 
 # Time Complexity
 
+There's a lot to analyze on this, but here's the flow of each program, generally
+
+
+## General Program Flow:
+
+* Read the file from argc
+* Go through every character, and handle the command:
+    * If the command == EMAIL, heapInsert
+        * Then heapSiftUp
+            * while loop to set the index at the right place
+    * If the command == READ, then use HeapExtractMax
+        * if the size is zero then return
+        * else, heapSiftDown
+            * while loop for every element that sorts everything
+
+This is pretty much just a MaxHeap implementation. Since this is a type of complete Binary Tree, this has a time complexity of O(n * log(n)) complexity, and a space complexity of O(n) for every element. We'll touch on space later.
+
+
+## Extra Malloc Time 
+
+There is also not too much to say on the MaxHeap complexity, expect that because it's heap allocated, it is ever so slightly slower because of the heap. This is because unliked dynamically sized linked lists or binary search trees, the maxheap can generally be done in an array (remember above in Correctness the heap versus stack discussion as it relates to MaxHeap)
+
+From Mr Delroy of StackOverflow:
+
+(https://stackoverflow.com/questions/24057331/is-accessing-data-in-the-heap-faster-than-from-the-stack)
+
+```
+So, when using the stack programmers tend to do what they can with arrays, which are contiguous in memory, even if it means a little brute-force searching. The cache-efficiency may well make this better overall than heap based data containers where the elements are spread across more cache lines. Of course, stack usage doesn't scale to large numbers of elements, and - without at least a backup option of using heap - creates programs that stop working if given more data to process than expected.
+```
+
+P.S. I highly encourage you to read this post, it is insightful.
+
+Exactly the point to illustrate, the heap allocation will just be a bit slower. We can call this delay in allocation *M*. Sonnet's default macro for the allocation size is 16, so we can say that if it passes through this, we need to reallocate the the memory, which doubles it's capacity. Therfore, the total delay *T* for a maximum occurance of reallocation N is:
+```
+
+    T = M + M*N
+```
+
+This does not overly slow down our program, unless the memory becomes quite large. This causes the M to adjust based on the amount of N.
+
 
 
 # Space Complexity
+
+Similar to the discussion over time complexity, the space complexity follows from the MaxHeap data structure, with the wrinkle of it being malloced. Generally, it is O(n). But there is a lot that can be change here in terms of optmization, which I will discuss below:
 
 ## Struct Padding
 You might already know where I'm going with this, but let's look at Luna and Sonnet's structs, their layout and then discuss:
@@ -1181,6 +1223,35 @@ typedef struct {
 ```
 Also has 8 bytes of size, because the spacing is given for one char byte for each. It is a very strange result of the inner workings of C.
 
-Struct alignment, when done right, saves a lot of space. The long's addition in Sonnet makes the padding larger just where it is itself, but the categoryRank can be a uint8_t (it doesn't have that much range). I suspect the AI is generating older C, again.
+Struct alignment, when done right, saves a lot of space. The long's addition in Sonnet makes the padding larger just where it is itself, but the categoryRank can be a uint8_t (it doesn't have that much range). I suspect the AI is generating older C, again, and doesn't know about 1 byte types.
 
-Recommended changes by me would defintely be to make a shorter subject line (let's say 256, which Sonnet does) and then 
+Recommended changes by me would defintely be to make a shorter subject line (let's say 256, which Sonnet does) and then also to implement smaller representations of the data. This is where I think a lot of problems with spacing and how many emails can be malloced onto the heap. Something like
+
+```c
+typedef struct {
+    uint8_t categoryType;
+    uint8_t senderType;
+    int32_t dateValue;
+    char subject[MAX_SUBJECT_LEN];
+}
+```
+would be much more efficient, less verbose, and frankly better.
+
+## Heap Space Complexity Benefits 
+
+A brief statement is included here to laud the choice of using a heap allocated array instead of a stack array. While slower, it allows for significantly more emails and has much less potential to cause a stack overflow or other UB resulting from large amounts of data being processed. 
+
+My criticism in Heap vs Stack in Correctness is just to note that humans would, generally, not program a heap allocation method, which makes it seem alien. While reviewing this code more, it makes me appreciate the implementation of using a heap based array for a MaxHeap with considerably large elements, even if it is more difficult to implement.
+
+## String Storing 
+
+I touched on this in the struct, but I would like to revisit the string storing in structs and how unnecessary it is and increases string sizing.
+
+To start with the date, storing both the integer and string representation is wasteful, for every single email. In a program like this where space matters, that is 11 extra bytes for every single struct, best case scenario. Luna's is actually 20, for no specific reason. If the dateValue can be represented and displayed as an integer,
+there is no reason to not implement a function to just get the dateValue info. Strings are harder to work with than integers and contain much more potential problems.
+
+The only design reason to include the string is, if the string is constantly used by other parts of the program, it would be annoying to generate a string for it and then free it, because it would get difficult. But in the scope of this program, where we only need to display the date formatted from the integer, this point is moot and not really useful.
+
+Also, because of the nature of this problem, we can represent the sender as a value in the range of a value between 0-4 (Boss, Subordinate, Peer, Important Person, Other Person) and using strncmp for the char * value seems wasteful and long, since the problem statement only has 5 statements. If this wasn't a "toy" problem, we of course would want to store the string value, but in the PROMPT.md given to the LLMs, the senders were specified to be finite values. 
+
+Fixing the string storing in the struct is the biggest optmization in space that can be done to these structs
