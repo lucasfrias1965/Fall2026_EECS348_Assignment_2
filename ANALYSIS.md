@@ -30,7 +30,7 @@ EMAIL <sender category>, <subject line>, <date> - The emails in the CEO’s Inbo
      If there is more than one from a sender, then the newest email (not the oldest) should be read first. I discovered this trick while a manager at Sprint.      EMAIL is followed by space. The rest of the fields are delimited.   Assume <sender category> is one of the five strings listed above.   Assume <subject line> is a string which may contain spaces, but not commas   Assume <date> is in the format: MM-DD-YYYY
 --------------
 NEXT - Next email for the CEO to read. Display the information on the terminal in the following format: 
-     Sender: 
+Sender: 
      Subject: 
      Date: 
 ------------
@@ -1066,6 +1066,53 @@ There's a lot to analyze on this, but here's the flow of each program, generally
 
 This is pretty much just a MaxHeap implementation. Since this is a type of complete Binary Tree, this has a time complexity of O(n * log(n)) complexity, and a space complexity of O(n) for every element. We'll touch on space later.
 
+## Real Runtime Comparisons:
+
+Checking the actual runtime with the **time** command: 
+
+### Sonnet's Real Time Complexity
+```
+lucasfrias@Frias-iMac Fall2026_EECS348_Assignment_2 % time ./claude DEMO.txt
+There are 3 emails to read.
+
+There are 4 emails to read.
+
+Next email:
+Sender: Boss
+Subject: Never Mind
+Date: 01-03-2025
+
+Next email:
+Sender: Boss
+Subject: Important, Mind
+Date: 01-03-2025
+
+There are 2 emails to read.
+
+./claude DEMO.txt  0.05s user 0.02s system 95% cpu 0.072 total
+```
+
+### Luna's Real Time Complexity
+For the d_openai.c (REMEMBER, this is the modified one that accepts the normal file input with whitespacing, but besides that functionally the same):
+```
+lucasfrias@Frias-iMac Fall2026_EECS348_Assignment_2 % time ./d_openai DEMO.txt
+There are 3 emails to read.
+There are 4 emails to read.
+Next email:
+Sender: Boss
+Subject: Never Mind
+Date: 01-03-2025 
+Next email:
+Sender: Boss
+Subject: Never Mind
+Date: 01-03-2025 
+There are 3 emails to read.
+./d_openai DEMO.txt  0.05s user 0.02s system 96% cpu 0.069 total
+```
+
+As you can see, the time differs very little between one or the other, by the milisecond. I believe that 's is "faster" because it doesn't do character parsing, and instead is just assuming there's a certain amount of whitespace.
+
+
 
 ## Extra Malloc Time 
 
@@ -1094,6 +1141,166 @@ This does not overly slow down our program, unless the memory becomes quite larg
 # Space Complexity
 
 Similar to the discussion over time complexity, the space complexity follows from the MaxHeap data structure, with the wrinkle of it being malloced. Generally, it is O(n). But there is a lot that can be change here in terms of optmization, which I will discuss below:
+
+
+## Real Space Complexity
+
+I will be using time with the -l flag (different than Linux's formatting, this is general UNIX) and find the *maximum resident set size* and interpert the result.
+
+### Sonnet's Real Space Usage
+```
+lucasfrias@Frias-iMac Fall2026_EECS348_Assignment_2 % /usr/bin/time -l ./claude DEMO.txt
+There are 3 emails to read.
+
+There are 4 emails to read.
+
+Next email:
+Sender: Boss
+Subject: Never Mind
+Date: 01-03-2025
+
+Next email:
+Sender: Boss
+Subject: Important, Mind
+Date: 01-03-2025
+
+There are 2 emails to read.
+
+        0.06 real         0.05 user         0.01 sys
+             6803456  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                2770  page reclaims
+                   7  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   1  voluntary context switches
+                   7  involuntary context switches
+           373897343  instructions retired
+           217344675  cycles elapsed
+             1425408  peak memory footprint
+lucasfrias@Frias-iMac Fall2026_EECS348_Assignment_2 %
+```
+
+Compared to Luna's
+
+
+```
+lucasfrias@Frias-iMac Fall2026_EECS348_Assignment_2 % /usr/bin/time -l ./d_openai DEMO.txt
+There are 3 emails to read.
+There are 4 emails to read.
+Next email:
+Sender: Boss
+Subject: Never Mind
+Date: 01-03-2025 
+Next email:
+Sender: Boss
+Subject: Never Mind
+Date: 01-03-2025 
+There are 3 emails to read.
+        0.07 real         0.05 user         0.01 sys
+             6811648  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                2771  page reclaims
+                  10  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   1  voluntary context switches
+                  18  involuntary context switches
+           374084188  instructions retired
+           219663422  cycles elapsed
+             1433600  peak memory footprint
+
+```
+
+I believe the increase in space complexity from Luna is because of the struct sizing being considerably larger (see points below). Indeed, if we allocated 3000 elements to the email, which I did using this test file **generated by OpenAI's Luna mode**:
+
+```python3
+from datetime import date, timedelta
+import random
+
+random.seed(348)
+
+senders = [
+    "Boss",
+    "ImportantPerson",
+    "Peer",
+    "OtherPerson",
+]
+
+subjects = [
+    "Important",
+    "Health Insurance Enrollment",
+    "Never Mind",
+    "Project Update",
+    "Meeting Reminder",
+    "Quarterly Review",
+    "Schedule Change",
+    "Action Required",
+    "Team Lunch",
+    "Budget Discussion",
+    "Assignment Feedback",
+    "Follow Up",
+    "New Policy",
+    "Important, Mind",
+    "Please Review",
+]
+
+start_date = date(2024, 1, 1)
+end_date = date(2025, 12, 31)
+date_range = (end_date - start_date).days
+
+with open("emails.txt", "w", encoding="utf-8") as file:
+    for _ in range(3000):
+        sender = random.choice(senders)
+        subject = random.choice(subjects)
+        email_date = start_date + timedelta(
+            days=random.randint(0, date_range)
+        )
+
+        file.write(
+            f"EMAIL {sender},{subject},"
+            f"{email_date.strftime('%m-%d-%Y')}\n"
+        )
+
+print("Created emails.txt with 3000 email records.")
+```
+
+I noticed that Luna can't handle 3,000 emails, while Sonnet can
+```
+Error: Maximum number of emails reached.
+        0.08 real         0.05 user         0.01 sys
+             7290880  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                2905  page reclaims
+                   7  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  20  voluntary context switches
+                  19  involuntary context switches
+           397836697  instructions retired
+           233561459  cycles elapsed
+             1904640  peak memory footprint
+```
+
+Generally, by adjusting the range, I found that Luna used around 10,000 bytes more on average than Sonnet. See findings below to make sense of this:
 
 ## Struct Padding
 You might already know where I'm going with this, but let's look at Luna and Sonnet's structs, their layout and then discuss:
@@ -1254,4 +1461,78 @@ The only design reason to include the string is, if the string is constantly use
 
 Also, because of the nature of this problem, we can represent the sender as a value in the range of a value between 0-4 (Boss, Subordinate, Peer, Important Person, Other Person) and using strncmp for the char * value seems wasteful and long, since the problem statement only has 5 statements. If this wasn't a "toy" problem, we of course would want to store the string value, but in the PROMPT.md given to the LLMs, the senders were specified to be finite values. 
 
-Fixing the string storing in the struct is the biggest optmization in space that can be done to these structs
+An enum would also be a great choice here, although the reason I prefer using a uint8_t is because the namespace can be implemented using macros and the enum would be 32-bit unless you typedefine the macro, which was implemented in C23 (which is a bit too modern to rely on). Still, uint8_t < enum < char [namesize] in terms of space.
+
+Fixing the string storing in the struct is the biggest optmization in space that can be done to these structs.
+
+# Maintainability
+
+As much as these are impressive to generate in one prompt, with no style guide, it is very clear that the choices made by the large language models are not great.
+
+
+## Scalability
+
+To give both Luna and Sonnet the approriate lauding, it is better to process a large amount of data through the heap instead of the stack. This allows them to store a greater amount of data, and makes for a more robust system. Also robust in the implementation of string fields for senders for multiple different senders.
+
+The LLMs defintely understand that critical infrastructure like emails ought to be scalable. Maybe this is some incentive they have, built to try and implement the most durable code, especially in C.
+
+## Problem Statement Optimizations
+
+However, as Donald Knuth once said: "Premature optimization is the root of all evil". The LLMs, implementing the most general solution possible, fail to make common sense choices in their implementations. For example, there are only five possible senders in the PROMPT.md specification. There is no need to store the string (as discussed in Space Complexity->String Storing). Moreover, the choice to use the heap choice may be more difficult to actually maintain in the future (from Correctness->Heap vs Stack). I feel that, even though this is optmized for working in the long term, it is too general of an implementation that would defintely be questioned at any sort of interview. 
+
+The solution to this problem does not require some of these design choices, and actively make maintaining this with a human worse.
+
+
+## Double Storing Date
+
+Touched in on struct but this will generate confusion specifically with maintainability and actually configuring the values and outputs. Some future feature may attempt to use one over the other, and if something changes (for example, leap year calculations) it is easier to work with the integer than string version. There shouldn't be a reason to modify the date, but it should remain one value.
+
+
+## Older C89 Syntax
+
+I believe this may become a common theme, but Luna and Sonnet are trained off of older C information and data. Here are some examples: 
+
+```c
+//From Sonnet's heapSiftDown function:
+while (1) { //no stdbool
+        int left  = leftChildIndex(index);
+        int right = rightChildIndex(index);
+        int largest = index;
+        ...
+```
+
+Several integer return values instead of boolean, which is a little boring but true, there is no good reason to use an int:
+```c
+//From Sonnet's heapPeek:
+int heapPeek(MaxHeap *heap, Email *outEmail) {
+    if (heap->size == 0) return 0;
+    *outEmail = heap->data[0];
+    return 1;
+}
+```
+
+But generally not as bad as it could possible be. Sonnet even used size_t! 
+
+```c
+//From Sonnet's trimNewline:
+
+void trimNewline(char *s) {
+    size_t len = strlen(s);
+    while (len > 0 && (s[len - 1] == '\n' || s[len - 1] == '\r')) {
+``` 
+
+## General Thoughts
+
+Despite my criticism, this is not unmaintainable. It just is too general for the problem statement, which does help it in maintainability. Even still, it makes choices that would make it harder to modify for future additions and might cause confusion. This is the center of my criticism: LLMs, trained on general data, seem very good at making general choices, but struggle when it comes to common-sense problem statement optimizations.
+
+
+
+# Human Output
+
+After discussing and figuring out both, I actually prefer Luna's output. Even though the output didn't work the first time, it's simpler and does things less verbosely than Sonnet's.
+
+That being said, I will be making what probably is a very big structural change from both of them: using a stack versus heap imlementation of our MaxHeap DS. I think there is really no need to use malloc and resize. I also will be fixing the struct to be intentional and smaller.
+
+Below is the fixed output of openai.c, renamed human.c. I implemented what I discuss in the comments prefaced with //Lucas here
+
+```c
