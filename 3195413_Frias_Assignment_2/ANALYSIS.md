@@ -69,7 +69,7 @@ There are 4 emails to read.
 
 Good luck!
 ```
-The only modifcation that has been done are slight markdown changes to fromat into this document. You can see the original in PROMPT.md.
+The only modifcation that has been done are slight markdown changes to format into this document. You can see the original in PROMPT.md.
 
 Below are the analysis pertaining to each category below. I hope this is informative and correct.
 
@@ -924,8 +924,7 @@ else if (strcmp(line, "NEXT") == 0)
 
 According to Mr Bharati of StackOverflow fame (https://stackoverflow.com/questions/30190460/advantages-of-strncmp-over-strcmp#30190652) he has this to say about the difference:
 
-```The problem with strcmp is that sometimes, if by mistake, arguments that are passed are not valid C-strings (meaning that p1 or p2 is not terminated with a null character i.e. not NULL-terminated String), then, strcmp continues comparing until it reaches non-accessible memory and crashes or sometimes results to an unexpected behaviour.
-```
+> The problem with strcmp is that sometimes, if by mistake, arguments that are passed are not valid C-strings (meaning that p1 or p2 is not terminated with a null character i.e. not NULL-terminated String), then, strcmp continues comparing until it reaches non-accessible memory and crashes or sometimes results to an unexpected behaviour.
 
 
 Is that what happens here? Yes, unfortunately. strcmp does not keep going until it sees the null terminator character, but it's very unsafe because the input file doesn't guarentee that the newline character is this. This causes every single strcmp to fail. Sonnet avoids this pitfail, but Luna fails with just a single space occuring after the line. strncmp would be much safer here because for each newline the promise is that there is at least some command such as COUNT, READ, NEXT. Just adding strncmp with the correct sizing fixes this bug simply, but Luna was unable to anticipate this, partly because of the file format but mostly because of using unsafe functions and trusting they work and ignoring new space.
@@ -959,7 +958,7 @@ One very commonly discussed feature with C and other statically strictly typed l
 If we want to still do this in the stack, there's a couple of ways.
 Firstly, we can just use a really big stack frame
 ```
-    Email * email_max_heap[MAX_EMAIL_SIZE] = {0};
+    Email email_max_heap[MAX_EMAIL_SIZE] = {0};
 ```
 We do use a lot of stack that we don't probably need, but modern operating systems are smart with these things and actually don't really give you the memory unless you really need it. However, this might not be the best practice. There are other ways, because we don't have to set the max_heap_size at compile time.
 
@@ -985,7 +984,7 @@ This snippet of code I programmed up there would be smarter than just setting so
 
 If we instead want to have a completely dynamic implementation, we have to use the heap and allocate variables. We could do this two ways: with a linked list or an array.
 
-However, when doing max heaps, just as a refresher, it would be better to use an array based implementation instead of a linked list because each malloc for a new node in a linked list will give it a completely unrelated virtual memory address. An array is the best way, but it because difficult. Look at this function below:
+However, when doing max heaps,  it would be better to use an array based implementation instead of a linked list because each malloc for a new node in a linked list will give it a completely unrelated virtual memory address. An array is the best way, but it because difficult. Look at this function below:
 ```c
 void heapEnsureCapacity(MaxHeap *heap) {
     if (heap->size < heap->capacity) return;
@@ -1027,7 +1026,7 @@ where:
 #define INITIAL_CAPACITY  16
 ```
 
-(Small note, it is strange that the date is hard-coded and not a macro, at least for readability)
+(Small note, it is strange that the date is a string AND a number, at least for readability. We'll talk about this soon)
 
 Anyways, we can calculate roughly how much the struct's size ought to be.
 
@@ -1122,9 +1121,7 @@ From Mr Delroy of StackOverflow:
 
 (https://stackoverflow.com/questions/24057331/is-accessing-data-in-the-heap-faster-than-from-the-stack)
 
-```
-So, when using the stack programmers tend to do what they can with arrays, which are contiguous in memory, even if it means a little brute-force searching. The cache-efficiency may well make this better overall than heap based data containers where the elements are spread across more cache lines. Of course, stack usage doesn't scale to large numbers of elements, and - without at least a backup option of using heap - creates programs that stop working if given more data to process than expected.
-```
+> So, when using the stack programmers tend to do what they can with arrays, which are contiguous in memory, even if it means a little brute-force searching. The cache-efficiency may well make this better overall than heap based data containers where the elements are spread across more cache lines. Of course, stack usage doesn't scale to large numbers of elements, and - without at least a backup option of using heap - creates programs that stop working if given more data to process than expected.
 
 P.S. I highly encourage you to read this post, it is insightful.
 
@@ -1342,16 +1339,13 @@ To also note, both Sonnet and Luna have ridiculously long email subject permissi
 
 (https://stackoverflow.com/questions/1592291/what-is-the-email-subject-length-limit)
 
-```
 See RFC 2822, section 2.1.1 to start.
 
-There are two limits that this standard places on the number of characters in a line. Each line of characters MUST be no more than 998 characters, and SHOULD be no more than 78 characters, excluding the CRLF.
-```
+> There are two limits that this standard places on the number of characters in a line. Each line of characters MUST be no more than 998 characters, and SHOULD be no more than 78 characters, excluding the CRLF.
+
 He continues to say:
 
-```
-The recommendation for no more than 78 characters in the subject header sounds reasonable. No one wants to scroll to see the entire subject line, and something important might get cut off on the right.
-```
+> The recommendation for no more than 78 characters in the subject header sounds reasonable. No one wants to scroll to see the entire subject line, and something important might get cut off on the right.
 
 Testing this on a modern email client (this post is from 2009, after all) it seems like KU's outlook has a limit of 256. This seems reasonable. 500 is too much, and makes every email twice as expensive. Less is even possible, although maybe not good to implement.
 
@@ -2278,6 +2272,15 @@ int main(int argc, char *argv[]) {
 
 This implementation didn't change much because I think a scrutctural rewrite into a stack-based MaxHeap would be better for this particular application, but the work and difference between the AI code would be so significant that it would be beyond the scope of adding small improvements. That being said, I don't think this is particularly bad of a solution, now that the structs are smaller. Sonnet did a good job anticipating output issues.
 
+## Improved "Correctness" and Maintainability
+
+Sonnet's original code was correct. I changed some minor syntax (for example, explicitly recasting a malloced pointer twice like this:)
+```c
+int * doobyDoo = (int *)malloc(sizeof(int));
+```
+and adding ```true``` and ```false``` and less weird syntax overall. These changes are discussed in the comments attributed to Lucas modification.
+
+These changes are what makes code maintainable. Using weird syntax and implicit features of the C language make code less readable for most people, and Sonnet made a lot of programming choices that are bizarre to read until you fully wrap your head around. By changing some of this to more standard syntax, the overhead for maintainability decreases sharply.
 
 ## Improved Space and Time Complexity Resulting From Struct Optimization
 
@@ -2337,5 +2340,7 @@ edition of a C++ header file Zed decided to auto include
 Frontier models are interesting, but I still think are behind "replacing" programmers and their intuition. While they can generate extremely thorough implementations of existing code, it was very clear to me that both were too generalistic to actually implement code designed for the specific situation (at least in one prompt). I am wary of this replacing good enterprise level code, where well intentioned and tailored code makes machines written in the 90's still serve code today. 
 
 I think that understanding of the language is also generalized, meaning that AI does not intimately recall all features of the language and don't always make the best choices. However, I considering something while reading the while(1) loop in Sonnet's code. Is good code just readable code? while(1), still being a little obtuse, removes the stdbool dependency. I think that in large code bases, using bool helps reduce the error rates between different "truthy" comparisons, but if a design guide is followed, is it true that at the end of the day, well written code is code that is readable and maintainable, instead of the best?
+
+All of this being said, Claude Code did contribute a lot to my workflow on this assignment, to give proper diclosement. To make sure I implemented the correct parts of the syllabus, you can find the reviews I made it do in the llm_review folder. 
 
 Thank you for reading, and I hope that my analysis was informative and insightful. As before, this is written in both MD and PDF format. Choose whichever is more readable for you.
